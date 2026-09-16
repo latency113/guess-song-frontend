@@ -18,6 +18,7 @@ import {
   RotateCw,
   Radio,
   Mic2,
+  MicOff,
   Music,
 } from "lucide-react";
 
@@ -43,7 +44,7 @@ function GamePlayContent() {
   const searchParams = useSearchParams();
   const category = searchParams.get("category") || "THAI_HITS";
   const roundsCount = parseInt(searchParams.get("rounds") || "10", 10);
-  const mode = (searchParams.get("mode") as "disguised" | "normal") || "disguised";
+  const mode = (searchParams.get("mode") as "disguised" | "instrumental" | "normal") || "disguised";
   const voiceParam = searchParams.get("voice") || "random";
 
   const [rounds, setRounds] = useState<GameRound[]>([]);
@@ -77,12 +78,14 @@ function GamePlayContent() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const diffGainRef = useRef<GainNode | null>(null);
+  const normalGainRef = useRef<GainNode | null>(null);
   const filterNodeRef = useRef<BiquadFilterNode | null>(null);
 
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const roundStartTimeRef = useRef<number>(0);
 
-  // Initialize Web Audio API nodes
+  // Initialize Web Audio API nodes with both Instrumental Vocal Canceler and Voice Disguise branches
   const setupAudioNodes = () => {
     if (!audioRef.current || audioCtxRef.current) return;
 
@@ -94,12 +97,33 @@ function GamePlayContent() {
       const source = ctx.createMediaElementSource(audioRef.current);
       sourceNodeRef.current = source;
 
+      // 1. Center Vocal Canceler Branch (L - R stereo difference)
+      const splitter = ctx.createChannelSplitter(2);
+      const inverter = ctx.createGain();
+      inverter.gain.value = -1;
+
+      const diffGain = ctx.createGain();
+      diffGain.gain.value = mode === "instrumental" ? 1.0 : 0.0;
+      diffGainRef.current = diffGain;
+
+      source.connect(splitter);
+      splitter.connect(diffGain, 0); // Left channel
+      splitter.connect(inverter, 1); // Right channel into inverter
+      inverter.connect(diffGain);    // Left + (-Right) = Vocal Cancelled!
+      diffGain.connect(ctx.destination);
+
+      // 2. Normal / Voice Disguised Branch
       const filter = ctx.createBiquadFilter();
       filter.type = "allpass";
       filterNodeRef.current = filter;
 
+      const normalGain = ctx.createGain();
+      normalGain.gain.value = mode === "instrumental" ? 0.0 : 1.0;
+      normalGainRef.current = normalGain;
+
       source.connect(filter);
-      filter.connect(ctx.destination);
+      filter.connect(normalGain);
+      normalGain.connect(ctx.destination);
     } catch (e) {
       console.warn("Web Audio initialization warning:", e);
     }
@@ -204,9 +228,13 @@ function GamePlayContent() {
     setIsAnswered(false);
     setLastRoundScore(null);
 
-    // Pick target voice preset
+    // Pick target voice preset & gain routing
     let targetVoice: VoicePreset;
     if (mode === "disguised") {
+      if (diffGainRef.current && normalGainRef.current) {
+        diffGainRef.current.gain.value = 0.0;
+        normalGainRef.current.gain.value = 1.0;
+      }
       if (voiceParam === "chipmunk") {
         targetVoice = VOICE_PRESETS[0];
       } else if (voiceParam === "monster") {
@@ -217,7 +245,22 @@ function GamePlayContent() {
         // Random / cycle each round
         targetVoice = VOICE_PRESETS[roundIndex % VOICE_PRESETS.length];
       }
+    } else if (mode === "instrumental") {
+      if (diffGainRef.current && normalGainRef.current) {
+        diffGainRef.current.gain.value = 1.0;
+        normalGainRef.current.gain.value = 0.0;
+      }
+      targetVoice = {
+        id: "instrumental",
+        label: "🎸 ตัดเสียงร้อง (ดนตรีล้วน)",
+        shortLabel: "ดนตรีล้วน",
+        style: "normal",
+      };
     } else {
+      if (diffGainRef.current && normalGainRef.current) {
+        diffGainRef.current.gain.value = 0.0;
+        normalGainRef.current.gain.value = 1.0;
+      }
       targetVoice = {
         id: "normal",
         label: "🎵 เสียงต้นฉบับ",
@@ -270,11 +313,31 @@ function GamePlayContent() {
       audioCtxRef.current.resume();
     }
     audioRef.current.currentTime = 0;
-    applyVoiceDisguise(activeVoice.style);
+    if (mode === "instrumental") {
+      if (diffGainRef.current && normalGainRef.current) {
+        diffGainRef.current.gain.value = 1.0;
+        normalGainRef.current.gain.value = 0.0;
+      }
+      applyVoiceDisguise("normal");
+    } else if (mode === "disguised") {
+      if (diffGainRef.current && normalGainRef.current) {
+        diffGainRef.current.gain.value = 0.0;
+        normalGainRef.current.gain.value = 1.0;
+      }
+      applyVoiceDisguise(activeVoice.style);
+    } else {
+      if (diffGainRef.current && normalGainRef.current) {
+        diffGainRef.current.gain.value = 0.0;
+        normalGainRef.current.gain.value = 1.0;
+      }
+      applyVoiceDisguise("normal");
+    }
     audioRef.current
       .play()
       .then(() => {
-        applyVoiceDisguise(activeVoice.style);
+        if (mode === "disguised") {
+          applyVoiceDisguise(activeVoice.style);
+        }
         setIsPlayingAudio(true);
       })
       .catch(console.warn);
@@ -295,7 +358,11 @@ function GamePlayContent() {
     setLastRoundScore(0);
     soundEngine.playWrong();
 
-    // Remove voice disguise
+    // Reveal full original vocals
+    if (diffGainRef.current && normalGainRef.current) {
+      diffGainRef.current.gain.value = 0.0;
+      normalGainRef.current.gain.value = 1.0;
+    }
     applyVoiceDisguise("normal");
 
     setTotalTimeSpent((prev) => prev + ROUND_TIME_SEC);
@@ -340,7 +407,11 @@ function GamePlayContent() {
       setLastRoundScore(0);
     }
 
-    // Reveal original audio: reset disguise to normal so player hears singer's original voice!
+    // Reveal original audio with full vocals!
+    if (diffGainRef.current && normalGainRef.current) {
+      diffGainRef.current.gain.value = 0.0;
+      normalGainRef.current.gain.value = 1.0;
+    }
     applyVoiceDisguise("normal");
 
     if (audioRef.current) {
@@ -441,7 +512,9 @@ function GamePlayContent() {
           <div className="absolute -bottom-24 -right-24 w-48 h-48 rounded-full bg-violet-600/20 blur-3xl pointer-events-none" />
 
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-violet-600 to-pink-600 p-0.5 mx-auto mb-6 shadow-xl shadow-purple-600/30 flex items-center justify-center">
-            {mode === "disguised" ? (
+            {mode === "instrumental" ? (
+              <MicOff className="w-8 h-8 text-white animate-bounce" />
+            ) : mode === "disguised" ? (
               <Mic2 className="w-8 h-8 text-white animate-bounce" />
             ) : (
               <Volume2 className="w-8 h-8 text-white animate-bounce" />
@@ -450,13 +523,17 @@ function GamePlayContent() {
 
           <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-pink-500/10 border border-pink-500/30 text-pink-300 font-bold text-xs mb-3">
             <Radio className="w-3.5 h-3.5" />
-            {mode === "disguised"
+            {mode === "instrumental"
+              ? "โหมดตัดเสียงร้อง (เหลือแต่ดนตรี)"
+              : mode === "disguised"
               ? "โหมดทายด้วยเนื้อเพลงแต่เปลี่ยนเสียงร้อง"
               : "โหมดอินโทรเพลงฮิต (Original Audio)"}
           </div>
 
           <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2">
-            {mode === "disguised"
+            {mode === "instrumental"
+              ? "พร้อมฟังเสียงดนตรีแล้วหรือยัง?"
+              : mode === "disguised"
               ? "พร้อมทายเพลงจากเนื้อร้องดัดเสียงแล้วหรือยัง?"
               : "พร้อมฟังเสียงอินโทรแล้วหรือยัง?"}
           </h2>
@@ -465,7 +542,9 @@ function GamePlayContent() {
             <strong className="text-cyan-400">{rounds.length} ข้อ</strong>
             <br />
             <span className="text-xs text-zinc-400">
-              {mode === "disguised"
+              {mode === "instrumental"
+                ? "ระบบจะกรองและตัดเสียงร้องของศิลปินออก เหลือเฉพาะเสียงดนตรีกีตาร์ กลอง เบส ซินธ์ เพื่อทายจากฝีมือดนตรีแท้ๆ"
+                : mode === "disguised"
                 ? "ระบบจะเล่นท่อนเพลงพร้อมเนื้อร้อง แต่ดัดเสียงร้อง (ชิปมังก์/มอนสเตอร์) เพื่อไม่ให้จำเสียงนักร้องได้ ทายให้ถูกว่าคือเพลงอะไร!"
                 : "ฟังเสียงดนตรีและทำนองเพลงต้นฉบับ ทายให้ไวว่าคือเพลงอะไร"}
             </span>
@@ -482,6 +561,8 @@ function GamePlayContent() {
                 </strong>{" "}
                 {mode === "disguised"
                   ? "โฟกัสที่คำร้อง ทำนอง และท่อนฮิตของเพลงที่ถูกดัดแปลงเสียง"
+                  : mode === "instrumental"
+                  ? "โฟกัสที่ไลน์กีตาร์ คอร์ด บีทกลอง และเบส (ตัดเสียงร้องออก)"
                   : "โฟกัสที่จังหวะ คอร์ดกีตาร์ บีทกลอง และเมโลดี้"}
               </span>
             </div>
@@ -553,7 +634,27 @@ function GamePlayContent() {
             </div>
           )}
 
-          {mode === "disguised" ? (
+          {mode === "instrumental" ? (
+            <div
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border text-xs font-bold transition-all shadow-sm ${
+                isAnswered
+                  ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
+                  : "bg-teal-500/10 border-teal-500/30 text-teal-300"
+              }`}
+            >
+              {isAnswered ? (
+                <>
+                  <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>เฉลยเสียงร้องจริง</span>
+                </>
+              ) : (
+                <>
+                  <MicOff className="w-3.5 h-3.5 text-teal-400 animate-pulse" />
+                  <span>ตัดเสียงร้อง (ดนตรีล้วน)</span>
+                </>
+              )}
+            </div>
+          ) : mode === "disguised" ? (
             <div
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border text-xs font-bold transition-all shadow-sm ${
                 isAnswered
@@ -633,8 +734,16 @@ function GamePlayContent() {
           <RotateCw className={`w-4 h-4 ${isPlayingAudio ? "animate-spin" : ""}`} />
           <span>
             {isPlayingAudio
-              ? (mode === "disguised" ? `กำลังเล่นเสียง${activeVoice.shortLabel}...` : "กำลังเล่นเสียงเพลง...")
-              : (mode === "disguised" ? "ฟังเนื้อเพลงซ้ำ" : "ฟังเสียงเพลงซ้ำ")}
+              ? (mode === "disguised"
+                  ? `กำลังเล่นเสียง${activeVoice.shortLabel}...`
+                  : mode === "instrumental"
+                  ? "กำลังเล่นเสียงดนตรี..."
+                  : "กำลังเล่นเสียงเพลง...")
+              : (mode === "disguised"
+                  ? "ฟังเนื้อเพลงซ้ำ"
+                  : mode === "instrumental"
+                  ? "ฟังเสียงดนตรีซ้ำ"
+                  : "ฟังเสียงเพลงซ้ำ")}
           </span>
         </button>
       </div>

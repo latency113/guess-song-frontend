@@ -132,8 +132,20 @@ export default function ResultPage() {
             หมวดหมู่: <span className="text-pink-300 font-semibold">{result.category}</span>
           </span>
           {result.mode && (
-            <span className="px-2.5 py-0.5 rounded-full bg-pink-500/20 text-pink-300 text-xs font-bold border border-pink-500/30">
-              {result.mode === "disguised" ? "🎭 โหมดดัดเสียงร้อง" : "🎵 โหมดอินโทรปกติ"}
+            <span
+              className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                result.mode === "instrumental"
+                  ? "bg-teal-500/20 text-teal-300 border-teal-500/30"
+                  : result.mode === "disguised"
+                  ? "bg-pink-500/20 text-pink-300 border-pink-500/30"
+                  : "bg-violet-500/20 text-violet-300 border-violet-500/30"
+              }`}
+            >
+              {result.mode === "instrumental"
+                ? "🎸 โหมดตัดเสียงร้อง"
+                : result.mode === "disguised"
+                ? "🎭 โหมดดัดเสียงร้อง"
+                : "🎵 โหมดอินโทรปกติ"}
             </span>
           )}
         </div>

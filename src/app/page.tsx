@@ -18,6 +18,7 @@ import {
   Radio,
   Music2,
   Mic2,
+  MicOff,
 } from "lucide-react";
 
 export default function HomePage() {
@@ -26,7 +27,7 @@ export default function HomePage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("THAI_HITS");
   const [roundsCount, setRoundsCount] = useState<number>(10);
-  const [gameMode, setGameMode] = useState<"disguised" | "normal">("disguised");
+  const [gameMode, setGameMode] = useState<"disguised" | "instrumental" | "normal">("disguised");
   const [voiceStyle, setVoiceStyle] = useState<"random" | "chipmunk" | "monster" | "radio">("random");
   const [topScores, setTopScores] = useState<LeaderboardItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -111,71 +112,72 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* Mode 1: Voice Disguised / Guess by Lyrics */}
             <div
               onClick={() => setGameMode("disguised")}
-              className={`relative p-5 rounded-2xl border cursor-pointer transition-all ${
+              className={`relative p-5 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between ${
                 gameMode === "disguised"
                   ? "bg-gradient-to-br from-violet-900/40 via-purple-900/30 to-pink-900/30 border-pink-500/60 shadow-xl shadow-pink-500/10 ring-1 ring-pink-500/40"
                   : "glass-panel border-white/10 hover:border-white/20 hover:bg-white/5 opacity-75 hover:opacity-100"
               }`}
             >
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-pink-500 to-rose-500 flex items-center justify-center text-white shadow-lg shadow-pink-500/30">
-                    <Mic2 className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-pink-500/20 text-[11px] font-bold text-pink-300 mb-1">
-                      ✨ แนะนำใหม่ (New)
+              <div>
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-pink-500 to-rose-500 flex items-center justify-center text-white shadow-lg shadow-pink-500/30 shrink-0">
+                      <Mic2 className="w-5 h-5" />
                     </div>
-                    <h3 className="text-base font-bold text-white">
-                      โหมดดัดเสียงร้อง (ทายจากเนื้อเพลง)
-                    </h3>
+                    <div>
+                      <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-pink-500/20 text-[10px] font-bold text-pink-300 mb-0.5">
+                        ✨ ยอดนิยม
+                      </div>
+                      <h3 className="text-sm sm:text-base font-bold text-white">
+                        โหมดดัดเสียงร้อง
+                      </h3>
+                    </div>
+                  </div>
+                  <div
+                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all shrink-0 ${
+                      gameMode === "disguised" ? "border-pink-500 bg-pink-500" : "border-zinc-500"
+                    }`}
+                  >
+                    {gameMode === "disguised" && <div className="w-2 h-2 rounded-full bg-white" />}
                   </div>
                 </div>
-                <div
-                  className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
-                    gameMode === "disguised" ? "border-pink-500 bg-pink-500" : "border-zinc-500"
-                  }`}
-                >
-                  {gameMode === "disguised" && <div className="w-2 h-2 rounded-full bg-white" />}
-                </div>
-              </div>
 
-              <p className="text-xs text-zinc-300 mt-3 leading-relaxed">
-                ได้ยินเนื้อเพลงชัดเจน แต่ระบบจะ<strong>ดัดเสียงร้อง (ชิปมังก์/มอนสเตอร์)</strong> เพื่อไม่ให้รู้ว่าใครร้อง ป้องกันการจำเสียงนักร้องได้!
-              </p>
+                <p className="text-xs text-zinc-300 mt-2.5 leading-relaxed">
+                  ได้ยินเนื้อเพลงชัดเจน แต่ระบบจะ<strong>ดัดเสียงร้อง (ชิปมังก์/มอนสเตอร์)</strong> เพื่อไม่ให้รู้ว่าใครร้อง ทายจากเนื้อเพลงล้วนๆ
+                </p>
+              </div>
 
               {/* Voice Sub-options when selected */}
               {gameMode === "disguised" && (
                 <div
-                  className="mt-4 pt-3 border-t border-white/10"
+                  className="mt-3.5 pt-3 border-t border-white/10"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <div className="text-[11px] font-semibold text-zinc-400 mb-2">
+                  <div className="text-[11px] font-semibold text-zinc-400 mb-1.5">
                     เลือกสไตล์เสียงร้อง:
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 gap-1.5">
                     {[
-                      { id: "random", label: "🎲 สุ่มทุกข้อ", desc: "เปลี่ยนเสียงทุกข้อ" },
-                      { id: "chipmunk", label: "🐿️ ชิปมังก์", desc: "เสียงแหลมการ์ตูน" },
-                      { id: "monster", label: "🤖 มอนสเตอร์", desc: "เสียงทุ้มต่ำลึกลับ" },
-                      { id: "radio", label: "📻 วิทยุโบราณ", desc: "เสียง Lo-Fi Phone" },
+                      { id: "random", label: "🎲 สุ่มทุกข้อ" },
+                      { id: "chipmunk", label: "🐿️ ชิปมังก์" },
+                      { id: "monster", label: "🤖 มอนสเตอร์" },
+                      { id: "radio", label: "📻 วิทยุโบราณ" },
                     ].map((voice) => (
                       <button
                         key={voice.id}
                         type="button"
                         onClick={() => setVoiceStyle(voice.id as any)}
-                        className={`px-2.5 py-2 rounded-xl text-left border transition-all ${
+                        className={`px-2 py-1.5 rounded-xl text-left border transition-all ${
                           voiceStyle === voice.id
                             ? "bg-pink-500/20 border-pink-500/60 text-white font-bold shadow"
                             : "bg-white/5 border-white/10 text-zinc-400 hover:text-zinc-200"
                         }`}
                       >
                         <div className="text-xs">{voice.label}</div>
-                        <div className="text-[10px] text-zinc-400 truncate">{voice.desc}</div>
                       </button>
                     ))}
                   </div>
@@ -183,41 +185,90 @@ export default function HomePage() {
               )}
             </div>
 
-            {/* Mode 2: Original Sound / Intro */}
+            {/* Mode 2: Pure Instrumental / Vocal Cut */}
+            <div
+              onClick={() => setGameMode("instrumental")}
+              className={`relative p-5 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between ${
+                gameMode === "instrumental"
+                  ? "bg-gradient-to-br from-emerald-950/40 via-teal-900/30 to-cyan-950/40 border-emerald-500/60 shadow-xl shadow-emerald-500/10 ring-1 ring-emerald-500/40"
+                  : "glass-panel border-white/10 hover:border-white/20 hover:bg-white/5 opacity-75 hover:opacity-100"
+              }`}
+            >
+              <div>
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-600 flex items-center justify-center text-white shadow-lg shadow-emerald-500/30 shrink-0">
+                      <MicOff className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-[10px] font-bold text-emerald-300 mb-0.5">
+                        🎸 อินสตรูเมนทัล
+                      </div>
+                      <h3 className="text-sm sm:text-base font-bold text-white">
+                        โหมดตัดเสียงร้อง
+                      </h3>
+                    </div>
+                  </div>
+                  <div
+                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all shrink-0 ${
+                      gameMode === "instrumental" ? "border-emerald-500 bg-emerald-500" : "border-zinc-500"
+                    }`}
+                  >
+                    {gameMode === "instrumental" && <div className="w-2 h-2 rounded-full bg-white" />}
+                  </div>
+                </div>
+
+                <p className="text-xs text-zinc-300 mt-2.5 leading-relaxed">
+                  ตัดเสียงร้องของศิลปินออก เหลือเฉพาะ<strong>เสียงกีตาร์ กลอง เบส ซินธ์</strong> ทายจากทำนองและฝีมือดนตรีล้วนๆ!
+                </p>
+              </div>
+
+              <div className="mt-3.5 pt-2.5 border-t border-white/10 text-[11px] text-emerald-400/90 font-medium">
+                ⚡ ระบบ Center Phase Cancellation ตัดเสียงร้องกลาง
+              </div>
+            </div>
+
+            {/* Mode 3: Original Sound / Intro */}
             <div
               onClick={() => setGameMode("normal")}
-              className={`relative p-5 rounded-2xl border cursor-pointer transition-all ${
+              className={`relative p-5 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between ${
                 gameMode === "normal"
                   ? "bg-gradient-to-br from-violet-900/40 via-purple-900/30 to-pink-900/30 border-violet-500/60 shadow-xl shadow-violet-500/10 ring-1 ring-violet-500/40"
                   : "glass-panel border-white/10 hover:border-white/20 hover:bg-white/5 opacity-75 hover:opacity-100"
               }`}
             >
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-violet-600 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-violet-600/30">
-                    <Volume2 className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-violet-500/20 text-[11px] font-bold text-violet-300 mb-1">
-                      🎵 ออริจินัล
+              <div>
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-violet-600 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-violet-600/30 shrink-0">
+                      <Volume2 className="w-5 h-5" />
                     </div>
-                    <h3 className="text-base font-bold text-white">
-                      โหมดอินโทรปกติ (เสียงต้นฉบับ)
-                    </h3>
+                    <div>
+                      <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-500/20 text-[10px] font-bold text-violet-300 mb-0.5">
+                        🎵 คลาสสิก
+                      </div>
+                      <h3 className="text-sm sm:text-base font-bold text-white">
+                        โหมดอินโทรปกติ
+                      </h3>
+                    </div>
+                  </div>
+                  <div
+                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all shrink-0 ${
+                      gameMode === "normal" ? "border-violet-500 bg-violet-500" : "border-zinc-500"
+                    }`}
+                  >
+                    {gameMode === "normal" && <div className="w-2 h-2 rounded-full bg-white" />}
                   </div>
                 </div>
-                <div
-                  className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
-                    gameMode === "normal" ? "border-violet-500 bg-violet-500" : "border-zinc-500"
-                  }`}
-                >
-                  {gameMode === "normal" && <div className="w-2 h-2 rounded-full bg-white" />}
-                </div>
+
+                <p className="text-xs text-zinc-300 mt-2.5 leading-relaxed">
+                  ฟังเสียงเพลงแบบต้นฉบับครบทั้งดนตรีและเสียงร้อง ทายจากจังหวะ คอร์ด ทำนอง และเสียงของศิลปินตัวจริง
+                </p>
               </div>
 
-              <p className="text-xs text-zinc-300 mt-3 leading-relaxed">
-                ฟังเสียงดนตรีและเสียงเพลงแบบต้นฉบับ ทายจากจังหวะ คอร์ด ทำนอง และเสียงของศิลปินตัวจริง
-              </p>
+              <div className="mt-3.5 pt-2.5 border-t border-white/10 text-[11px] text-violet-400/90 font-medium">
+                🎧 ฟังเสียงบันทึกเสียงมาสเตอร์คุณภาพสูง
+              </div>
             </div>
           </div>
         </div>
