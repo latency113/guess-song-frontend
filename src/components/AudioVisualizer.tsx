@@ -7,6 +7,7 @@ interface AudioVisualizerProps {
   artworkUrl?: string;
   roundIndex: number;
   totalRounds: number;
+  isRevealed?: boolean;
 }
 
 export default function AudioVisualizer({
@@ -14,12 +15,13 @@ export default function AudioVisualizer({
   artworkUrl,
   roundIndex,
   totalRounds,
+  isRevealed = false,
 }: AudioVisualizerProps) {
   return (
-    <div className="relative flex flex-col items-center justify-center py-6">
+    <div className="relative flex flex-col items-center justify-center py-5">
       {/* Outer Glowing Ring */}
       <div
-        className={`relative w-48 h-48 sm:w-56 sm:h-56 rounded-full flex items-center justify-center transition-all duration-700 ${
+        className={`relative w-44 h-44 sm:w-52 sm:h-52 rounded-full flex items-center justify-center transition-all duration-700 ${
           isPlaying
             ? "shadow-[0_0_60px_rgba(236,72,153,0.5),0_0_100px_rgba(139,92,246,0.3)]"
             : "shadow-lg shadow-black/60 opacity-90"
@@ -53,7 +55,9 @@ export default function AudioVisualizer({
               <img
                 src={artworkUrl}
                 alt="Album Cover"
-                className="w-full h-full object-cover rounded-full filter blur-[10px] scale-110"
+                className={`w-full h-full object-cover rounded-full transition-all duration-500 ${
+                  isRevealed ? "filter-none scale-100" : "filter blur-[10px] scale-110"
+                }`}
               />
             ) : (
               <Disc3 className="w-8 h-8 text-white/90" />
@@ -65,16 +69,20 @@ export default function AudioVisualizer({
         </div>
       </div>
 
-      {/* Intro Status Pill */}
-      <div className="mt-6 flex items-center gap-2 px-4 py-1.5 rounded-full glass-panel border border-violet-500/30 shadow-lg">
+      {/* Status Pill */}
+      <div className="mt-5 flex items-center gap-2 px-4 py-1.5 rounded-full glass-panel border border-violet-500/30 shadow-lg">
         {isPlaying ? (
           <>
             <span className="w-2.5 h-2.5 rounded-full bg-pink-500 animate-ping" />
             <Volume2 className="w-4 h-4 text-pink-400 animate-pulse" />
             <span className="text-xs font-semibold tracking-wide text-pink-300">
-              กำลังเล่น INTRO เพลงที่ {roundIndex}/{totalRounds}
+              กำลังเล่นเสียงดนตรี • เพลงที่ {roundIndex}/{totalRounds}
             </span>
           </>
+        ) : isRevealed ? (
+          <span className="text-xs font-semibold text-emerald-300 flex items-center gap-1.5">
+            ✨ เฉลยเพลง
+          </span>
         ) : (
           <span className="text-xs text-zinc-400">หมดเวลา / เลือกคำตอบ</span>
         )}

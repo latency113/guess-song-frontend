@@ -14,8 +14,11 @@ import {
   RotateCcw,
   Sparkles,
   Loader2,
-  Music2,
-  Volume2
+  Volume2,
+  RotateCw,
+  MicOff,
+  Music,
+  Radio
 } from "lucide-react";
 
 const ROUND_TIME_SEC = 10;
@@ -40,15 +43,75 @@ function GamePlayContent() {
   const [correctCount, setCorrectCount] = useState(0);
   const [totalTimeSpent, setTotalTimeSpent] = useState(0);
 
+  // Vocal suppression filter (Instrumental mode)
+  const [isVocalFilterEnabled, setIsVocalFilterEnabled] = useState(true);
+
   // Round answer selection state
   const [selectedChoiceId, setSelectedChoiceId] = useState<string | null>(null);
   const [isAnswered, setIsAnswered] = useState(false);
   const [lastRoundScore, setLastRoundScore] = useState<number | null>(null);
 
-  // Audio elements
+  // Audio elements & Web Audio API
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const diffGainRef = useRef<GainNode | null>(null);
+  const normalGainRef = useRef<GainNode | null>(null);
+
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const roundStartTimeRef = useRef<number>(0);
+
+  // Initialize Web Audio API Center-Channel Vocal Canceler
+  const setupVocalCanceler = () => {
+    if (!audioRef.current || audioCtxRef.current) return;
+
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      const ctx = new AudioContextClass();
+      audioCtxRef.current = ctx;
+
+      const source = ctx.createMediaElementSource(audioRef.current);
+      sourceNodeRef.current = source;
+
+      // 1. Center Vocal Canceler Branch (L - R stereo difference)
+      // Cancels center-panned vocals while keeping guitars, drums, synths, and stereo music
+      const splitter = ctx.createChannelSplitter(2);
+      const inverter = ctx.createGain();
+      inverter.gain.value = -1;
+
+      const diffGain = ctx.createGain();
+      diffGain.gain.value = isVocalFilterEnabled ? 1.0 : 0.0;
+      diffGainRef.current = diffGain;
+
+      source.connect(splitter);
+      splitter.connect(diffGain, 0);   // Left channel
+      splitter.connect(inverter, 1);   // Right channel to inverter
+      inverter.connect(diffGain);      // Left + (-Right) = Vocal Cancelled!
+      diffGain.connect(ctx.destination);
+
+      // 2. Normal Audio Branch (used for reveal or when filter is disabled)
+      const normalGain = ctx.createGain();
+      normalGain.gain.value = isVocalFilterEnabled ? 0.0 : 1.0;
+      normalGainRef.current = normalGain;
+      source.connect(normalGain);
+      normalGain.connect(ctx.destination);
+    } catch (e) {
+      console.warn("Web Audio vocal canceler error, playing normal audio:", e);
+    }
+  };
+
+  // Sync vocal filter gain nodes when toggled
+  useEffect(() => {
+    if (diffGainRef.current && normalGainRef.current && !isAnswered) {
+      if (isVocalFilterEnabled) {
+        diffGainRef.current.gain.value = 1.0;
+        normalGainRef.current.gain.value = 0.0;
+      } else {
+        diffGainRef.current.gain.value = 0.0;
+        normalGainRef.current.gain.value = 1.0;
+      }
+    }
+  }, [isVocalFilterEnabled, isAnswered]);
 
   // Fetch session rounds from API
   useEffect(() => {
@@ -75,6 +138,11 @@ function GamePlayContent() {
   useEffect(() => {
     return () => {
       stopAudioAndTimer();
+      if (audioCtxRef.current) {
+        try {
+          audioCtxRef.current.close();
+        } catch {}
+      }
     };
   }, []);
 
@@ -85,7 +153,6 @@ function GamePlayContent() {
     }
     if (audioRef.current) {
       audioRef.current.pause();
-      audioRef.current.src = "";
     }
     setIsPlayingAudio(false);
   };
@@ -98,19 +165,30 @@ function GamePlayContent() {
     setIsAnswered(false);
     setLastRoundScore(null);
 
-    // Prepare audio
-    const audio = new Audio(round.previewUrl);
-    audio.preload = "auto";
-    audioRef.current = audio;
+    // Apply vocal filter for guessing phase
+    if (diffGainRef.current && normalGainRef.current) {
+      if (isVocalFilterEnabled) {
+        diffGainRef.current.gain.value = 1.0;
+        normalGainRef.current.gain.value = 0.0;
+      } else {
+        diffGainRef.current.gain.value = 0.0;
+        normalGainRef.current.gain.value = 1.0;
+      }
+    }
 
-    audio
-      .play()
-      .then(() => {
-        setIsPlayingAudio(true);
-      })
-      .catch((err) => {
-        console.warn("Audio autoplay blocked or network issue:", err);
-      });
+    // Set audio source and play
+    if (audioRef.current) {
+      audioRef.current.src = round.previewUrl;
+      audioRef.current.currentTime = 0;
+      audioRef.current
+        .play()
+        .then(() => {
+          setIsPlayingAudio(true);
+        })
+        .catch((err) => {
+          console.warn("Audio autoplay blocked or network issue:", err);
+        });
+    }
 
     roundStartTimeRef.current = Date.now();
 
@@ -130,6 +208,19 @@ function GamePlayContent() {
         return next;
       });
     }, 100);
+  };
+
+  // Replay audio
+  const handleReplayIntro = () => {
+    if (isAnswered || !audioRef.current) return;
+    if (audioCtxRef.current && audioCtxRef.current.state === "suspended") {
+      audioCtxRef.current.resume();
+    }
+    audioRef.current.currentTime = 0;
+    audioRef.current
+      .play()
+      .then(() => setIsPlayingAudio(true))
+      .catch(console.warn);
   };
 
   // Handle timeout (User ran out of time)
@@ -162,10 +253,6 @@ function GamePlayContent() {
       clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = null;
     }
-    if (audioRef.current) {
-      audioRef.current.pause();
-    }
-    setIsPlayingAudio(false);
 
     const timeSpent = (Date.now() - roundStartTimeRef.current) / 1000;
     setTotalTimeSpent((prev) => prev + Math.min(timeSpent, ROUND_TIME_SEC));
@@ -178,7 +265,7 @@ function GamePlayContent() {
 
     if (isCorrect) {
       soundEngine.playCorrect();
-      // Time-decay formula: max 1000 down to 100 based on time left
+      // Time decay formula: max 1000 down to 100
       const baseScore = Math.max(100, Math.round(1000 * (timeLeft / ROUND_TIME_SEC)));
       const streakBonus = streak * 50;
       const earned = baseScore + streakBonus;
@@ -193,9 +280,22 @@ function GamePlayContent() {
       setLastRoundScore(0);
     }
 
+    // Reveal audio: Unmute full original vocals as celebration reward
+    if (diffGainRef.current && normalGainRef.current) {
+      diffGainRef.current.gain.value = 0.0;
+      normalGainRef.current.gain.value = 1.0;
+    }
+
+    if (audioRef.current) {
+      audioRef.current
+        .play()
+        .then(() => setIsPlayingAudio(true))
+        .catch(() => {});
+    }
+
     setTimeout(() => {
       goToNextRound();
-    }, 1800);
+    }, 2200);
   };
 
   const goToNextRound = () => {
@@ -229,6 +329,7 @@ function GamePlayContent() {
 
   const handleStartFirstRound = () => {
     setHasStarted(true);
+    setupVocalCanceler();
     if (rounds.length > 0) {
       startCurrentRound(rounds[0]);
     }
@@ -238,8 +339,8 @@ function GamePlayContent() {
     return (
       <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh]">
         <Loader2 className="w-10 h-10 text-pink-500 animate-spin mb-4" />
-        <p className="text-zinc-300 font-medium">กำลังเตรียมท่อน Intro เพลงฮิต...</p>
-        <p className="text-xs text-zinc-500 mt-1">โหลดสัญญาณเสียงและคำถามสำหรับการแข่งขัน</p>
+        <p className="text-zinc-300 font-medium">กำลังเตรียมเสียงดนตรีเพลงฮิต...</p>
+        <p className="text-xs text-zinc-500 mt-1">โหลดสัญญาณเสียงดนตรีสำหรับการแข่งขัน</p>
       </div>
     );
   }
@@ -262,10 +363,18 @@ function GamePlayContent() {
     );
   }
 
-  // Pre-game Welcome Screen to ensure user interacts with audio context
+  // Pre-game Welcome Screen
   if (!hasStarted) {
     return (
       <div className="flex-1 flex items-center justify-center p-4">
+        {/* Hidden persistent audio element with CORS enabled */}
+        <audio
+          ref={audioRef}
+          crossOrigin="anonymous"
+          preload="auto"
+          className="hidden"
+        />
+
         <div className="w-full max-w-lg p-8 rounded-3xl glass-panel border border-violet-500/30 text-center shadow-2xl relative overflow-hidden">
           <div className="absolute -top-24 -left-24 w-48 h-48 rounded-full bg-pink-500/20 blur-3xl pointer-events-none" />
           <div className="absolute -bottom-24 -right-24 w-48 h-48 rounded-full bg-violet-600/20 blur-3xl pointer-events-none" />
@@ -274,32 +383,39 @@ function GamePlayContent() {
             <Volume2 className="w-8 h-8 text-white animate-bounce" />
           </div>
 
-          <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2">พร้อมฟังแล้วหรือยัง?</h2>
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-pink-500/10 border border-pink-500/30 text-pink-300 font-bold text-xs mb-3">
+            <Radio className="w-3.5 h-3.5" />
+            เกมทายเพลงจากเสียงดนตรี (Instrumental Quiz)
+          </div>
+
+          <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2">พร้อมฟังเสียงดนตรีแล้วหรือยัง?</h2>
           <p className="text-sm text-zinc-400 max-w-md mx-auto mb-6 leading-relaxed">
             หมวดหมู่: <strong className="text-pink-400">{category}</strong> | จำนวน:{" "}
             <strong className="text-cyan-400">{rounds.length} ข้อ</strong>
             <br />
-            เสียงอินโทรจะเริ่มทันทีที่กดปุ่มเริ่มเล่น
+            <span className="text-xs text-zinc-500">
+              ระบบจะเน้นเสียงดนตรีกีตาร์ กลอง เบส และตัดเสียงร้อง เพื่อทายจากฝีมือดนตรีแท้ๆ
+            </span>
           </p>
 
-          <div className="p-4 rounded-2xl bg-white/5 border border-white/10 mb-8 text-left space-y-2 text-xs text-zinc-300">
-            <div className="flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-amber-400/20 text-amber-400 font-bold flex items-center justify-center text-[10px]">
+          <div className="p-4 rounded-2xl bg-white/5 border border-white/10 mb-8 text-left space-y-2.5 text-xs text-zinc-300">
+            <div className="flex items-start gap-2.5">
+              <span className="w-5 h-5 rounded-full bg-amber-400/20 text-amber-400 font-bold flex items-center justify-center text-[10px] shrink-0 mt-0.5">
                 1
               </span>
-              <span>ฟังเสียงอินโทรความยาวไม่เกิน 10 วินาที</span>
+              <span><strong>ฟังเสียงดนตรี 10 วินาที:</strong> โฟกัสที่จังหวะ คอร์ดกีตาร์ บีทกลอง และเมโลดี้</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-pink-400/20 text-pink-400 font-bold flex items-center justify-center text-[10px]">
+            <div className="flex items-start gap-2.5">
+              <span className="w-5 h-5 rounded-full bg-pink-400/20 text-pink-400 font-bold flex items-center justify-center text-[10px] shrink-0 mt-0.5">
                 2
               </span>
-              <span>ยิ่งกดตอบเร็ว คะแนนยิ่งสูง (สูงสุด 1,000 pts/ข้อ)</span>
+              <span><strong>ยิ่งตอบเร็ว คะแนนยิ่งสูง:</strong> สูงสุด 1,000 คะแนนต่อข้อ พร้อมโบนัส Streak ต่อเนื่อง</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-rose-400/20 text-rose-400 font-bold flex items-center justify-center text-[10px]">
+            <div className="flex items-start gap-2.5">
+              <span className="w-5 h-5 rounded-full bg-emerald-400/20 text-emerald-400 font-bold flex items-center justify-center text-[10px] shrink-0 mt-0.5">
                 3
               </span>
-              <span>ตอบผิดได้ 0 แต้ม และรีเซ็ตโบนัส Streak</span>
+              <span><strong>เฉลยเพลงเต็ม:</strong> เมื่อกดตอบจะเผยหน้าปกและเปิดเพลงเฉลยให้ฟังอย่างสะใจ</span>
             </div>
           </div>
 
@@ -319,8 +435,16 @@ function GamePlayContent() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 flex-1 flex flex-col justify-between">
-      {/* Top Game Bar: Score, Round, Streak */}
-      <div className="glass-panel rounded-2xl p-4 border border-white/10 flex items-center justify-between shadow-lg mb-4">
+      {/* Hidden persistent audio element */}
+      <audio
+        ref={audioRef}
+        crossOrigin="anonymous"
+        preload="auto"
+        className="hidden"
+      />
+
+      {/* Top Game Bar: Score, Round, Streak, Vocal Toggle */}
+      <div className="glass-panel rounded-2xl p-4 border border-white/10 flex items-center justify-between shadow-lg mb-3">
         {/* Round Counter */}
         <div className="flex items-center gap-2">
           <div className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center font-bold text-sm text-pink-400">
@@ -331,13 +455,41 @@ function GamePlayContent() {
           </span>
         </div>
 
-        {/* Streak Indicator */}
-        {streak > 1 && (
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/30 text-orange-400 font-bold text-xs animate-bounce">
-            <Flame className="w-4 h-4 fill-current" />
-            <span>Streak x{streak}</span>
-          </div>
-        )}
+        {/* Center: Streak / Vocal Filter Badge */}
+        <div className="flex items-center gap-2">
+          {streak > 1 && (
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/30 text-orange-400 font-bold text-xs animate-bounce">
+              <Flame className="w-4 h-4 fill-current" />
+              <span>Streak x{streak}</span>
+            </div>
+          )}
+
+          {/* Toggle Vocal Filter Button */}
+          <button
+            type="button"
+            onClick={() => setIsVocalFilterEnabled(!isVocalFilterEnabled)}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold transition-all ${
+              isVocalFilterEnabled
+                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
+                : "bg-white/5 border-white/10 text-zinc-400 hover:text-white"
+            }`}
+            title="เปิด/ปิดการตัดเสียงร้องของศิลปิน"
+          >
+            {isVocalFilterEnabled ? (
+              <>
+                <MicOff className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">ตัดเสียงร้อง: เปิด</span>
+                <span className="sm:hidden">ตัดเสียง</span>
+              </>
+            ) : (
+              <>
+                <Music className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">ตัดเสียงร้อง: ปิด</span>
+                <span className="sm:hidden">ปกติ</span>
+              </>
+            )}
+          </button>
+        </div>
 
         {/* Current Score */}
         <div className="text-right">
@@ -348,13 +500,14 @@ function GamePlayContent() {
         </div>
       </div>
 
-      {/* Audio Visualizer */}
+      {/* Audio Visualizer Disc */}
       <div className="relative">
         <AudioVisualizer
           isPlaying={isPlayingAudio}
           artworkUrl={isAnswered ? currentRound.choices.find((c) => c.id === currentRound.correctSongId)?.artworkUrl : undefined}
           roundIndex={currentRoundIdx + 1}
           totalRounds={rounds.length}
+          isRevealed={isAnswered}
         />
 
         {/* Round Score Popup Animation */}
@@ -375,11 +528,28 @@ function GamePlayContent() {
         )}
       </div>
 
+      {/* Clean Replay Controller */}
+      <div className="flex items-center justify-center my-3">
+        <button
+          type="button"
+          disabled={isAnswered}
+          onClick={handleReplayIntro}
+          className={`py-2 px-6 rounded-2xl border font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 shadow-lg ${
+            isPlayingAudio
+              ? "bg-pink-500/20 border-pink-500/50 text-pink-300 shadow-pink-500/20 animate-pulse"
+              : "bg-white/10 hover:bg-white/20 border-white/20 text-white active:scale-[0.98]"
+          }`}
+        >
+          <RotateCw className={`w-4 h-4 ${isPlayingAudio ? "animate-spin" : ""}`} />
+          <span>{isPlayingAudio ? "กำลังเล่นเสียงดนตรี..." : "ฟังเสียงดนตรีซ้ำ"}</span>
+        </button>
+      </div>
+
       {/* Timer Bar */}
       <TimerBar timeLeft={timeLeft} totalTime={ROUND_TIME_SEC} />
 
       {/* 4 Choices Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4 mt-2 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-3.5 mt-2 mb-4">
         {currentRound.choices.map((choice, idx) => {
           const isSelected = selectedChoiceId === choice.id;
           const isCorrectAnswer = choice.id === currentRound.correctSongId;
@@ -401,7 +571,7 @@ function GamePlayContent() {
               key={choice.id}
               disabled={isAnswered}
               onClick={() => handleSelectChoice(choice)}
-              className={`relative text-left p-4 rounded-2xl border glass-panel transition-all duration-200 flex items-center justify-between group active:scale-[0.98] ${buttonStyle}`}
+              className={`relative text-left p-3.5 sm:p-4 rounded-2xl border glass-panel transition-all duration-200 flex items-center justify-between group active:scale-[0.98] ${buttonStyle}`}
             >
               <div className="flex items-center gap-3.5 overflow-hidden">
                 {/* Number Badge or Album Cover */}

@@ -33,6 +33,7 @@ export interface GameChoice {
 export interface GameRound {
   roundIndex: number;
   previewUrl: string;
+  youtubeId?: string;
   correctSongId: string;
   choices: GameChoice[];
 }
