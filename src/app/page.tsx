@@ -15,6 +15,9 @@ import {
   ShieldCheck,
   Headphones,
   Award,
+  Radio,
+  Music2,
+  Mic2,
 } from "lucide-react";
 
 export default function HomePage() {
@@ -23,6 +26,8 @@ export default function HomePage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("THAI_HITS");
   const [roundsCount, setRoundsCount] = useState<number>(10);
+  const [gameMode, setGameMode] = useState<"disguised" | "normal">("disguised");
+  const [voiceStyle, setVoiceStyle] = useState<"random" | "chipmunk" | "monster" | "radio">("random");
   const [topScores, setTopScores] = useState<LeaderboardItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -45,7 +50,9 @@ export default function HomePage() {
   }, []);
 
   const handleStartGame = () => {
-    router.push(`/play?category=${selectedCategory}&rounds=${roundsCount}`);
+    router.push(
+      `/play?category=${selectedCategory}&rounds=${roundsCount}&mode=${gameMode}&voice=${voiceStyle}`
+    );
   };
 
   return (
@@ -88,6 +95,129 @@ export default function HomePage() {
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10">
               <Trophy className="w-3.5 h-3.5 text-cyan-400" />
               <span>บันทึกชื่อขึ้น Leaderboard</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Game Mode Selection Section */}
+        <div className="mb-12">
+          <div className="mb-4">
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <Music2 className="w-5 h-5 text-pink-400" />
+              เลือกโหมดการเล่น (Game Mode)
+            </h2>
+            <p className="text-xs text-zinc-400 mt-0.5">
+              เลือกความท้าทาย: ทายจากเนื้อร้องดัดเสียง หรือทายจากเสียงอินโทรต้นฉบับ
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Mode 1: Voice Disguised / Guess by Lyrics */}
+            <div
+              onClick={() => setGameMode("disguised")}
+              className={`relative p-5 rounded-2xl border cursor-pointer transition-all ${
+                gameMode === "disguised"
+                  ? "bg-gradient-to-br from-violet-900/40 via-purple-900/30 to-pink-900/30 border-pink-500/60 shadow-xl shadow-pink-500/10 ring-1 ring-pink-500/40"
+                  : "glass-panel border-white/10 hover:border-white/20 hover:bg-white/5 opacity-75 hover:opacity-100"
+              }`}
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-pink-500 to-rose-500 flex items-center justify-center text-white shadow-lg shadow-pink-500/30">
+                    <Mic2 className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-pink-500/20 text-[11px] font-bold text-pink-300 mb-1">
+                      ✨ แนะนำใหม่ (New)
+                    </div>
+                    <h3 className="text-base font-bold text-white">
+                      โหมดดัดเสียงร้อง (ทายจากเนื้อเพลง)
+                    </h3>
+                  </div>
+                </div>
+                <div
+                  className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                    gameMode === "disguised" ? "border-pink-500 bg-pink-500" : "border-zinc-500"
+                  }`}
+                >
+                  {gameMode === "disguised" && <div className="w-2 h-2 rounded-full bg-white" />}
+                </div>
+              </div>
+
+              <p className="text-xs text-zinc-300 mt-3 leading-relaxed">
+                ได้ยินเนื้อเพลงชัดเจน แต่ระบบจะ<strong>ดัดเสียงร้อง (ชิปมังก์/มอนสเตอร์)</strong> เพื่อไม่ให้รู้ว่าใครร้อง ป้องกันการจำเสียงนักร้องได้!
+              </p>
+
+              {/* Voice Sub-options when selected */}
+              {gameMode === "disguised" && (
+                <div
+                  className="mt-4 pt-3 border-t border-white/10"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="text-[11px] font-semibold text-zinc-400 mb-2">
+                    เลือกสไตล์เสียงร้อง:
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {[
+                      { id: "random", label: "🎲 สุ่มทุกข้อ", desc: "เปลี่ยนเสียงทุกข้อ" },
+                      { id: "chipmunk", label: "🐿️ ชิปมังก์", desc: "เสียงแหลมการ์ตูน" },
+                      { id: "monster", label: "🤖 มอนสเตอร์", desc: "เสียงทุ้มต่ำลึกลับ" },
+                      { id: "radio", label: "📻 วิทยุโบราณ", desc: "เสียง Lo-Fi Phone" },
+                    ].map((voice) => (
+                      <button
+                        key={voice.id}
+                        type="button"
+                        onClick={() => setVoiceStyle(voice.id as any)}
+                        className={`px-2.5 py-2 rounded-xl text-left border transition-all ${
+                          voiceStyle === voice.id
+                            ? "bg-pink-500/20 border-pink-500/60 text-white font-bold shadow"
+                            : "bg-white/5 border-white/10 text-zinc-400 hover:text-zinc-200"
+                        }`}
+                      >
+                        <div className="text-xs">{voice.label}</div>
+                        <div className="text-[10px] text-zinc-400 truncate">{voice.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Mode 2: Original Sound / Intro */}
+            <div
+              onClick={() => setGameMode("normal")}
+              className={`relative p-5 rounded-2xl border cursor-pointer transition-all ${
+                gameMode === "normal"
+                  ? "bg-gradient-to-br from-violet-900/40 via-purple-900/30 to-pink-900/30 border-violet-500/60 shadow-xl shadow-violet-500/10 ring-1 ring-violet-500/40"
+                  : "glass-panel border-white/10 hover:border-white/20 hover:bg-white/5 opacity-75 hover:opacity-100"
+              }`}
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-violet-600 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-violet-600/30">
+                    <Volume2 className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-violet-500/20 text-[11px] font-bold text-violet-300 mb-1">
+                      🎵 ออริจินัล
+                    </div>
+                    <h3 className="text-base font-bold text-white">
+                      โหมดอินโทรปกติ (เสียงต้นฉบับ)
+                    </h3>
+                  </div>
+                </div>
+                <div
+                  className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                    gameMode === "normal" ? "border-violet-500 bg-violet-500" : "border-zinc-500"
+                  }`}
+                >
+                  {gameMode === "normal" && <div className="w-2 h-2 rounded-full bg-white" />}
+                </div>
+              </div>
+
+              <p className="text-xs text-zinc-300 mt-3 leading-relaxed">
+                ฟังเสียงดนตรีและเสียงเพลงแบบต้นฉบับ ทายจากจังหวะ คอร์ด ทำนอง และเสียงของศิลปินตัวจริง
+              </p>
             </div>
           </div>
         </div>

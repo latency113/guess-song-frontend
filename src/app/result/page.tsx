@@ -21,6 +21,7 @@ import {
 
 interface GameResult {
   category: string;
+  mode?: string;
   score: number;
   correctCount: number;
   totalRounds: number;
@@ -126,9 +127,16 @@ export default function ResultPage() {
         </div>
 
         <h1 className="text-2xl sm:text-3xl font-extrabold text-white">ยอดเยี่ยมมาก! จบเกมแล้ว</h1>
-        <p className="text-xs sm:text-sm text-zinc-400 mt-1">
-          หมวดหมู่: <span className="text-pink-300 font-semibold">{result.category}</span>
-        </p>
+        <div className="text-xs sm:text-sm text-zinc-400 mt-1.5 flex items-center justify-center gap-2 flex-wrap">
+          <span>
+            หมวดหมู่: <span className="text-pink-300 font-semibold">{result.category}</span>
+          </span>
+          {result.mode && (
+            <span className="px-2.5 py-0.5 rounded-full bg-pink-500/20 text-pink-300 text-xs font-bold border border-pink-500/30">
+              {result.mode === "disguised" ? "🎭 โหมดดัดเสียงร้อง" : "🎵 โหมดอินโทรปกติ"}
+            </span>
+          )}
+        </div>
 
         {/* Big Score Display */}
         <div className="my-8 py-6 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md">
