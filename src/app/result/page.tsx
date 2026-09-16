@@ -73,6 +73,7 @@ export default function ResultPage() {
     try {
       const res = await api.finishGame({
         category: data.category,
+        mode: data.mode || "disguised",
         score: data.score,
         correctCount: data.correctCount,
         totalRounds: data.totalRounds,

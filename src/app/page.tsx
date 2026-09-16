@@ -21,6 +21,28 @@ import {
   MicOff,
 } from "lucide-react";
 
+function getModeBadge(mode?: string) {
+  if (mode === "instrumental") {
+    return {
+      label: "ตัดเสียงร้อง",
+      icon: <MicOff className="w-3 h-3 text-teal-400" />,
+      style: "bg-teal-500/10 border-teal-500/30 text-teal-300",
+    };
+  }
+  if (mode === "normal") {
+    return {
+      label: "อินโทรปกติ",
+      icon: <Volume2 className="w-3 h-3 text-violet-400" />,
+      style: "bg-violet-500/10 border-violet-500/30 text-violet-300",
+    };
+  }
+  return {
+    label: "ดัดเสียงร้อง",
+    icon: <Mic2 className="w-3 h-3 text-pink-400" />,
+    style: "bg-pink-500/10 border-pink-500/30 text-pink-300",
+  };
+}
+
 export default function HomePage() {
   const router = useRouter();
   const { user, openAuthModal } = useAuth();
@@ -29,6 +51,7 @@ export default function HomePage() {
   const [roundsCount, setRoundsCount] = useState<number>(10);
   const [gameMode, setGameMode] = useState<"disguised" | "instrumental" | "normal">("disguised");
   const [voiceStyle, setVoiceStyle] = useState<"random" | "chipmunk" | "monster" | "radio">("random");
+  const [leaderboardMode, setLeaderboardMode] = useState<string>("ALL");
   const [topScores, setTopScores] = useState<LeaderboardItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -37,7 +60,7 @@ export default function HomePage() {
       try {
         const [cats, lb] = await Promise.all([
           api.getCategories(),
-          api.getLeaderboard("ALL", 3),
+          api.getLeaderboard("ALL", 3, leaderboardMode),
         ]);
         setCategories(cats);
         setTopScores(lb);
@@ -48,7 +71,7 @@ export default function HomePage() {
       }
     }
     loadData();
-  }, []);
+  }, [leaderboardMode]);
 
   const handleStartGame = () => {
     router.push(
@@ -338,26 +361,52 @@ export default function HomePage() {
         </div>
 
         {/* Top 3 Leaderboard Teaser */}
-        {topScores.length > 0 && (
-          <div className="mt-16 max-w-3xl mx-auto rounded-3xl glass-panel p-6 sm:p-8 border border-white/10 relative overflow-hidden">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
-                  <Trophy className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-base text-white">ยอดฝีมือประจำตารางอันดับ</h3>
-                  <p className="text-xs text-zinc-400">ผู้เล่นที่มีคะแนนสูงที่สุดในขณะนี้</p>
-                </div>
+        <div className="mt-16 max-w-3xl mx-auto rounded-3xl glass-panel p-6 sm:p-8 border border-white/10 relative overflow-hidden">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
+                <Trophy className="w-5 h-5" />
               </div>
-              <button
-                onClick={() => router.push("/leaderboard")}
-                className="text-xs font-semibold text-violet-400 hover:text-violet-300 flex items-center gap-1 transition-colors"
-              >
-                ดูทั้งหมด <ArrowRight className="w-3.5 h-3.5" />
-              </button>
+              <div>
+                <h3 className="font-bold text-base text-white">ยอดฝีมือประจำตารางอันดับ</h3>
+                <p className="text-xs text-zinc-400">ผู้เล่นที่มีคะแนนสูงสุด แยกตามโหมดการเล่น</p>
+              </div>
             </div>
+            <button
+              onClick={() => router.push(leaderboardMode !== "ALL" ? `/leaderboard?mode=${leaderboardMode}` : "/leaderboard")}
+              className="text-xs font-semibold text-violet-400 hover:text-violet-300 flex items-center gap-1 transition-colors self-start sm:self-auto"
+            >
+              ดูตารางเต็ม <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
 
+          {/* Mode Selector Mini Tabs */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-3 mb-4 scrollbar-none">
+            {[
+              { id: "ALL", label: "ทุกโหมด" },
+              { id: "disguised", label: "โหมดดัดเสียงร้อง" },
+              { id: "instrumental", label: "โหมดตัดเสียงร้อง" },
+              { id: "normal", label: "โหมดอินโทรปกติ" },
+            ].map((m) => (
+              <button
+                key={m.id}
+                onClick={() => setLeaderboardMode(m.id)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+                  leaderboardMode === m.id
+                    ? "bg-gradient-to-r from-pink-600 to-violet-600 text-white shadow-md shadow-pink-500/10"
+                    : "glass-panel border border-white/10 text-zinc-400 hover:text-white hover:border-white/20"
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+
+          {topScores.length === 0 ? (
+            <div className="py-8 text-center text-zinc-400 text-xs">
+              ยังไม่มีสถิติในโหมดนี้ เล่นเป็นคนแรกเพื่อจองอันดับ 1!
+            </div>
+          ) : (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {topScores.map((item, idx) => {
                 const podiumColors = [
@@ -365,20 +414,27 @@ export default function HomePage() {
                   "border-slate-300/30 bg-slate-300/5 text-slate-300",
                   "border-amber-700/40 bg-amber-700/5 text-amber-500",
                 ];
+                const modeBadge = getModeBadge(item.mode);
                 return (
                   <div
                     key={item.id}
-                    className={`p-4 rounded-2xl border ${podiumColors[idx] || "border-white/10"} flex items-center justify-between sm:flex-col sm:items-start`}
+                    className={`p-4 rounded-2xl border ${podiumColors[idx] || "border-white/10"} flex flex-col justify-between gap-3`}
                   >
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-extrabold text-sm px-2 py-0.5 rounded-md bg-white/10">
-                        #{item.rank}
-                      </span>
-                      <span className="font-semibold text-sm text-white truncate max-w-[120px]">
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="font-extrabold text-xs px-2 py-0.5 rounded-md bg-white/10">
+                          #{item.rank}
+                        </span>
+                        <div className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${modeBadge.style}`}>
+                          {modeBadge.icon}
+                          <span>{modeBadge.label}</span>
+                        </div>
+                      </div>
+                      <div className="font-semibold text-sm text-white truncate">
                         {item.displayName}
-                      </span>
+                      </div>
                     </div>
-                    <div className="text-right sm:text-left">
+                    <div>
                       <div className="font-extrabold text-lg text-white">
                         {item.score.toLocaleString()} <span className="text-xs font-normal text-zinc-400">pts</span>
                       </div>
@@ -390,8 +446,8 @@ export default function HomePage() {
                 );
               })}
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

@@ -54,6 +54,7 @@ export interface LeaderboardItem {
   displayName: string;
   username?: string;
   category: string;
+  mode?: string;
   score: number;
   correctCount: number;
   totalRounds: number;
@@ -136,6 +137,7 @@ class ApiClient {
 
   async finishGame(data: {
     category: string;
+    mode?: string;
     score: number;
     correctCount: number;
     totalRounds: number;
@@ -154,11 +156,14 @@ class ApiClient {
     return await res.json();
   }
 
-  async getLeaderboard(category?: string, limit: number = 25): Promise<LeaderboardItem[]> {
+  async getLeaderboard(category?: string, limit: number = 25, mode?: string): Promise<LeaderboardItem[]> {
     try {
       const url = new URL(`${API_BASE_URL}/api/leaderboard`);
       if (category && category !== "ALL") {
         url.searchParams.set("category", category);
+      }
+      if (mode && mode !== "ALL") {
+        url.searchParams.set("mode", mode);
       }
       url.searchParams.set("limit", String(limit));
 
