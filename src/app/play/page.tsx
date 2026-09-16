@@ -751,6 +751,19 @@ function GamePlayContent() {
       {/* Timer Bar */}
       <TimerBar timeLeft={timeLeft} totalTime={ROUND_TIME_SEC} />
 
+      {/* Target Artist Badge */}
+      {currentRound.artistName && (
+        <div className="flex items-center justify-center mt-3 mb-1">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-violet-500/10 via-fuchsia-500/10 to-pink-500/10 border border-violet-500/25 text-zinc-200 text-xs sm:text-sm font-medium shadow-sm">
+            <Mic2 className="w-3.5 h-3.5 text-pink-400 shrink-0" />
+            <span className="text-zinc-400">ทายเพลงของ:</span>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-300 via-purple-300 to-indigo-200 font-extrabold">
+              {currentRound.artistName}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* 4 Choices Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-3.5 mt-2 mb-4">
         {currentRound.choices.map((choice, idx) => {

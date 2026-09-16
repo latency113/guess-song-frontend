@@ -35,6 +35,7 @@ export interface GameRound {
   previewUrl: string;
   youtubeId?: string;
   correctSongId: string;
+  artistName?: string;
   choices: GameChoice[];
 }
 
