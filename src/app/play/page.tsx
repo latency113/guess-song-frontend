@@ -42,10 +42,39 @@ const VOICE_PRESETS: VoicePreset[] = [
 function GamePlayContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const category = searchParams.get("category") || "THAI_HITS";
+  const searchCategory = searchParams.get("category");
+  const category = searchCategory || "THAI_HITS";
   const roundsCount = parseInt(searchParams.get("rounds") || "10", 10);
-  const mode = (searchParams.get("mode") as "disguised" | "instrumental" | "normal") || "disguised";
-  const voiceParam = searchParams.get("voice") || "random";
+
+  // Resolve game mode: URL search param > localStorage > default "disguised"
+  const rawMode = searchParams.get("mode");
+  const mode: "disguised" | "instrumental" | "normal" =
+    rawMode === "disguised" || rawMode === "instrumental" || rawMode === "normal"
+      ? rawMode
+      : typeof window !== "undefined" &&
+        (localStorage.getItem("music_quiz_last_mode") as any) === "instrumental"
+      ? "instrumental"
+      : typeof window !== "undefined" &&
+        (localStorage.getItem("music_quiz_last_mode") as any) === "normal"
+      ? "normal"
+      : "disguised";
+
+  const voiceParam =
+    searchParams.get("voice") ||
+    (typeof window !== "undefined"
+      ? localStorage.getItem("music_quiz_last_voice") || "random"
+      : "random");
+
+  // Keep localStorage in sync with currently active mode and category
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("music_quiz_last_mode", mode);
+      localStorage.setItem("music_quiz_last_category", category);
+      if (voiceParam) {
+        localStorage.setItem("music_quiz_last_voice", voiceParam);
+      }
+    }
+  }, [mode, category, voiceParam]);
 
   const [rounds, setRounds] = useState<GameRound[]>([]);
   const [currentRoundIdx, setCurrentRoundIdx] = useState(0);
@@ -493,12 +522,21 @@ function GamePlayContent() {
     const gameResult = {
       category,
       mode,
+      voice: voiceParam,
       score: scoreRef.current,
       correctCount: correctCountRef.current,
       totalRounds: roundsRef.current.length,
       timeTakenSec: parseFloat(totalTimeSpentRef.current.toFixed(1)),
     };
     sessionStorage.setItem("music_quiz_last_result", JSON.stringify(gameResult));
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem("music_quiz_last_mode", mode);
+      localStorage.setItem("music_quiz_last_category", category);
+      if (voiceParam) {
+        localStorage.setItem("music_quiz_last_voice", voiceParam);
+      }
+    }
 
     router.push("/result");
   };

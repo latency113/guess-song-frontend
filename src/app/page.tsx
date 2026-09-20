@@ -55,6 +55,45 @@ export default function HomePage() {
   const [topScores, setTopScores] = useState<LeaderboardItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Restore last played mode & preferences from localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedMode = localStorage.getItem("music_quiz_last_mode") as any;
+      if (savedMode && ["disguised", "instrumental", "normal"].includes(savedMode)) {
+        setGameMode(savedMode);
+      }
+      const savedVoice = localStorage.getItem("music_quiz_last_voice") as any;
+      if (savedVoice && ["random", "chipmunk", "monster", "radio"].includes(savedVoice)) {
+        setVoiceStyle(savedVoice);
+      }
+      const savedCategory = localStorage.getItem("music_quiz_last_category");
+      if (savedCategory) {
+        setSelectedCategory(savedCategory);
+      }
+    }
+  }, []);
+
+  const selectGameMode = (mode: "disguised" | "instrumental" | "normal") => {
+    setGameMode(mode);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("music_quiz_last_mode", mode);
+    }
+  };
+
+  const selectVoiceStyle = (voice: "random" | "chipmunk" | "monster" | "radio") => {
+    setVoiceStyle(voice);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("music_quiz_last_voice", voice);
+    }
+  };
+
+  const selectCategory = (catId: string) => {
+    setSelectedCategory(catId);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("music_quiz_last_category", catId);
+    }
+  };
+
   useEffect(() => {
     async function loadData() {
       try {
@@ -74,6 +113,11 @@ export default function HomePage() {
   }, [leaderboardMode]);
 
   const handleStartGame = () => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("music_quiz_last_mode", gameMode);
+      localStorage.setItem("music_quiz_last_category", selectedCategory);
+      localStorage.setItem("music_quiz_last_voice", voiceStyle);
+    }
     router.push(
       `/play?category=${selectedCategory}&rounds=${roundsCount}&mode=${gameMode}&voice=${voiceStyle}`
     );
@@ -138,7 +182,7 @@ export default function HomePage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* Mode 1: Voice Disguised / Guess by Lyrics */}
             <div
-              onClick={() => setGameMode("disguised")}
+              onClick={() => selectGameMode("disguised")}
               className={`relative p-5 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between ${
                 gameMode === "disguised"
                   ? "bg-gradient-to-br from-violet-900/40 via-purple-900/30 to-pink-900/30 border-pink-500/60 shadow-xl shadow-pink-500/10 ring-1 ring-pink-500/40"
@@ -193,7 +237,7 @@ export default function HomePage() {
                       <button
                         key={voice.id}
                         type="button"
-                        onClick={() => setVoiceStyle(voice.id as any)}
+                        onClick={() => selectVoiceStyle(voice.id as any)}
                         className={`px-2 py-1.5 rounded-xl text-left border transition-all ${
                           voiceStyle === voice.id
                             ? "bg-pink-500/20 border-pink-500/60 text-white font-bold shadow"
@@ -210,7 +254,7 @@ export default function HomePage() {
 
             {/* Mode 2: Pure Instrumental / Vocal Cut */}
             <div
-              onClick={() => setGameMode("instrumental")}
+              onClick={() => selectGameMode("instrumental")}
               className={`relative p-5 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between ${
                 gameMode === "instrumental"
                   ? "bg-gradient-to-br from-emerald-950/40 via-teal-900/30 to-cyan-950/40 border-emerald-500/60 shadow-xl shadow-emerald-500/10 ring-1 ring-emerald-500/40"
@@ -253,7 +297,7 @@ export default function HomePage() {
 
             {/* Mode 3: Original Sound / Intro */}
             <div
-              onClick={() => setGameMode("normal")}
+              onClick={() => selectGameMode("normal")}
               className={`relative p-5 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between ${
                 gameMode === "normal"
                   ? "bg-gradient-to-br from-violet-900/40 via-purple-900/30 to-pink-900/30 border-violet-500/60 shadow-xl shadow-violet-500/10 ring-1 ring-violet-500/40"
@@ -332,7 +376,7 @@ export default function HomePage() {
                 key={cat.id}
                 category={cat}
                 isSelected={selectedCategory === cat.id}
-                onSelect={(id) => setSelectedCategory(id)}
+                onSelect={(id) => selectCategory(id)}
               />
             ))}
           </div>

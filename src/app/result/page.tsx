@@ -22,6 +22,7 @@ import {
 interface GameResult {
   category: string;
   mode?: string;
+  voice?: string;
   score: number;
   correctCount: number;
   totalRounds: number;
@@ -251,7 +252,29 @@ export default function ResultPage() {
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row items-center gap-3">
           <button
-            onClick={() => router.push("/play?category=" + result.category + "&rounds=" + result.totalRounds)}
+            onClick={() => {
+              const modeToPlay =
+                result.mode ||
+                (typeof window !== "undefined"
+                  ? localStorage.getItem("music_quiz_last_mode")
+                  : null) ||
+                "disguised";
+              const voiceToPlay =
+                result.voice ||
+                (typeof window !== "undefined"
+                  ? localStorage.getItem("music_quiz_last_voice")
+                  : null);
+
+              const params = new URLSearchParams({
+                category: result.category,
+                rounds: String(result.totalRounds),
+                mode: modeToPlay,
+              });
+              if (voiceToPlay) {
+                params.set("voice", voiceToPlay);
+              }
+              router.push(`/play?${params.toString()}`);
+            }}
             className="w-full sm:flex-1 py-3.5 rounded-xl bg-gradient-to-r from-violet-600 via-fuchsia-600 to-pink-600 text-white font-bold text-sm shadow-lg shadow-violet-600/30 hover:opacity-95 transition-all flex items-center justify-center gap-2"
           >
             <RotateCcw className="w-4 h-4" />
