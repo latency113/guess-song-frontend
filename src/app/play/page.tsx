@@ -462,7 +462,7 @@ function GamePlayContent() {
       soundEngine.playCorrect();
       // Time decay formula: max 1000 down to 100 based on remaining time
       const remainingTime = Math.max(0, ROUND_TIME_SEC - roundDuration);
-      const baseScore = Math.max(100, Math.round(1000 * (remainingTime / ROUND_TIME_SEC)));
+      const baseScore = Math.max(100, Math.round(1500 * (remainingTime / ROUND_TIME_SEC)));
       const streakBonus = streakRef.current * 50;
       const earned = baseScore + streakBonus;
 
