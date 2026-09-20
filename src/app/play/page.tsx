@@ -22,7 +22,7 @@ import {
   Music,
 } from "lucide-react";
 
-const ROUND_TIME_SEC = 10;
+const ROUND_TIME_SEC = 15;
 
 type VoicePresetStyle = "chipmunk" | "monster" | "radio" | "normal";
 
@@ -557,7 +557,9 @@ function GamePlayContent() {
               </span>
               <span>
                 <strong>
-                  {mode === "disguised" ? "ฟังเนื้อร้อง 10 วินาที:" : "ฟังเสียงดนตรี 10 วินาที:"}
+                  {mode === "disguised"
+                    ? `ฟังเนื้อร้อง ${ROUND_TIME_SEC} วินาที:`
+                    : `ฟังเสียงดนตรี ${ROUND_TIME_SEC} วินาที:`}
                 </strong>{" "}
                 {mode === "disguised"
                   ? "โฟกัสที่คำร้อง ทำนอง และท่อนฮิตของเพลงที่ถูกดัดแปลงเสียง"
