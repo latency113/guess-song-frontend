@@ -83,7 +83,17 @@ function GamePlayContent() {
   const filterNodeRef = useRef<BiquadFilterNode | null>(null);
 
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const nextRoundTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const roundStartTimeRef = useRef<number>(0);
+
+  // Synchronized state refs to prevent stale closures in async callbacks
+  const isAnsweredRef = useRef(false);
+  const currentRoundIdxRef = useRef(0);
+  const scoreRef = useRef(0);
+  const correctCountRef = useRef(0);
+  const streakRef = useRef(0);
+  const totalTimeSpentRef = useRef(0);
+  const roundsRef = useRef<GameRound[]>([]);
 
   // Initialize Web Audio API nodes with both Instrumental Vocal Canceler and Voice Disguise branches
   const setupAudioNodes = () => {
@@ -187,6 +197,7 @@ function GamePlayContent() {
           throw new Error("ไม่มีข้อมูลเพลงในหมวดหมู่นี้");
         }
         setRounds(session.rounds);
+        roundsRef.current = session.rounds;
       } catch (err: any) {
         console.error("Init game error:", err);
         setError(err.message || "ไม่สามารถโหลดข้อมูลเกมได้");
@@ -214,6 +225,10 @@ function GamePlayContent() {
       clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = null;
     }
+    if (nextRoundTimeoutRef.current) {
+      clearTimeout(nextRoundTimeoutRef.current);
+      nextRoundTimeoutRef.current = null;
+    }
     if (audioRef.current) {
       audioRef.current.pause();
     }
@@ -223,10 +238,14 @@ function GamePlayContent() {
   // Start round
   const startCurrentRound = (round: GameRound, roundIndex: number) => {
     stopAudioAndTimer();
-    setTimeLeft(ROUND_TIME_SEC);
-    setSelectedChoiceId(null);
+    currentRoundIdxRef.current = roundIndex;
+    setCurrentRoundIdx(roundIndex);
+
+    isAnsweredRef.current = false;
     setIsAnswered(false);
+    setSelectedChoiceId(null);
     setLastRoundScore(null);
+    setTimeLeft(ROUND_TIME_SEC);
 
     // Pick target voice preset & gain routing
     let targetVoice: VoicePreset;
@@ -288,27 +307,32 @@ function GamePlayContent() {
 
     roundStartTimeRef.current = Date.now();
 
-    // Start 100ms interval timer for smooth progress bar
+    // Start 100ms interval timer for smooth progress bar using exact elapsed time
     timerIntervalRef.current = setInterval(() => {
-      setTimeLeft((prev) => {
-        const next = Math.max(0, prev - 0.1);
+      if (isAnsweredRef.current) return;
 
-        // Sound tick on last 3 seconds
-        if (next <= 3 && Math.floor(next * 10) % 10 === 0 && next > 0) {
-          soundEngine.playTick();
-        }
+      const elapsed = (Date.now() - roundStartTimeRef.current) / 1000;
+      const remaining = Math.max(0, ROUND_TIME_SEC - elapsed);
+      setTimeLeft(remaining);
 
-        if (next <= 0) {
-          handleTimeOut();
+      // Sound tick on last 3 seconds
+      if (remaining <= 3 && Math.floor(remaining * 10) % 10 === 0 && remaining > 0) {
+        soundEngine.playTick();
+      }
+
+      if (remaining <= 0) {
+        if (timerIntervalRef.current) {
+          clearInterval(timerIntervalRef.current);
+          timerIntervalRef.current = null;
         }
-        return next;
-      });
+        handleTimeOut();
+      }
     }, 100);
   };
 
   // Replay audio
   const handleReplayIntro = () => {
-    if (isAnswered || !audioRef.current) return;
+    if (isAnsweredRef.current || !audioRef.current) return;
     if (audioCtxRef.current && audioCtxRef.current.state === "suspended") {
       audioCtxRef.current.resume();
     }
@@ -345,6 +369,10 @@ function GamePlayContent() {
 
   // Handle timeout (User ran out of time)
   const handleTimeOut = () => {
+    if (isAnsweredRef.current) return;
+    isAnsweredRef.current = true;
+    setIsAnswered(true);
+
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = null;
@@ -353,7 +381,8 @@ function GamePlayContent() {
       audioRef.current.pause();
     }
     setIsPlayingAudio(false);
-    setIsAnswered(true);
+
+    streakRef.current = 0;
     setStreak(0);
     setLastRoundScore(0);
     soundEngine.playWrong();
@@ -365,16 +394,22 @@ function GamePlayContent() {
     }
     applyVoiceDisguise("normal");
 
-    setTotalTimeSpent((prev) => prev + ROUND_TIME_SEC);
+    totalTimeSpentRef.current += ROUND_TIME_SEC;
+    setTotalTimeSpent(totalTimeSpentRef.current);
 
-    setTimeout(() => {
+    if (nextRoundTimeoutRef.current) {
+      clearTimeout(nextRoundTimeoutRef.current);
+    }
+    nextRoundTimeoutRef.current = setTimeout(() => {
       goToNextRound();
     }, 2000);
   };
 
   // Handle choice click
   const handleSelectChoice = (choice: GameChoice) => {
-    if (isAnswered) return;
+    if (isAnsweredRef.current) return;
+    isAnsweredRef.current = true;
+    setIsAnswered(true);
 
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
@@ -382,27 +417,36 @@ function GamePlayContent() {
     }
 
     const timeSpent = (Date.now() - roundStartTimeRef.current) / 1000;
-    setTotalTimeSpent((prev) => prev + Math.min(timeSpent, ROUND_TIME_SEC));
+    const roundDuration = Math.min(timeSpent, ROUND_TIME_SEC);
+    totalTimeSpentRef.current += roundDuration;
+    setTotalTimeSpent(totalTimeSpentRef.current);
 
     setSelectedChoiceId(choice.id);
-    setIsAnswered(true);
 
-    const currentRound = rounds[currentRoundIdx];
-    const isCorrect = choice.id === currentRound.correctSongId;
+    const currentRound = roundsRef.current[currentRoundIdxRef.current];
+    const isCorrect = choice.id === currentRound?.correctSongId;
 
     if (isCorrect) {
       soundEngine.playCorrect();
-      // Time decay formula: max 1000 down to 100
-      const baseScore = Math.max(100, Math.round(1000 * (timeLeft / ROUND_TIME_SEC)));
-      const streakBonus = streak * 50;
+      // Time decay formula: max 1000 down to 100 based on remaining time
+      const remainingTime = Math.max(0, ROUND_TIME_SEC - roundDuration);
+      const baseScore = Math.max(100, Math.round(1000 * (remainingTime / ROUND_TIME_SEC)));
+      const streakBonus = streakRef.current * 50;
       const earned = baseScore + streakBonus;
 
-      setScore((prev) => prev + earned);
-      setStreak((prev) => prev + 1);
-      setCorrectCount((prev) => prev + 1);
+      scoreRef.current += earned;
+      setScore(scoreRef.current);
+
+      streakRef.current += 1;
+      setStreak(streakRef.current);
+
+      correctCountRef.current += 1;
+      setCorrectCount(correctCountRef.current);
+
       setLastRoundScore(earned);
     } else {
       soundEngine.playWrong();
+      streakRef.current = 0;
       setStreak(0);
       setLastRoundScore(0);
     }
@@ -421,16 +465,21 @@ function GamePlayContent() {
         .catch(() => {});
     }
 
-    setTimeout(() => {
+    if (nextRoundTimeoutRef.current) {
+      clearTimeout(nextRoundTimeoutRef.current);
+    }
+    nextRoundTimeoutRef.current = setTimeout(() => {
       goToNextRound();
     }, 2200);
   };
 
   const goToNextRound = () => {
-    if (currentRoundIdx + 1 < rounds.length) {
-      const nextIdx = currentRoundIdx + 1;
+    stopAudioAndTimer();
+    const nextIdx = currentRoundIdxRef.current + 1;
+    if (nextIdx < roundsRef.current.length) {
+      currentRoundIdxRef.current = nextIdx;
       setCurrentRoundIdx(nextIdx);
-      startCurrentRound(rounds[nextIdx], nextIdx);
+      startCurrentRound(roundsRef.current[nextIdx], nextIdx);
     } else {
       finishGame();
     }
@@ -444,10 +493,10 @@ function GamePlayContent() {
     const gameResult = {
       category,
       mode,
-      score,
-      correctCount,
-      totalRounds: rounds.length,
-      timeTakenSec: parseFloat(totalTimeSpent.toFixed(1)),
+      score: scoreRef.current,
+      correctCount: correctCountRef.current,
+      totalRounds: roundsRef.current.length,
+      timeTakenSec: parseFloat(totalTimeSpentRef.current.toFixed(1)),
     };
     sessionStorage.setItem("music_quiz_last_result", JSON.stringify(gameResult));
 
@@ -457,8 +506,13 @@ function GamePlayContent() {
   const handleStartFirstRound = () => {
     setHasStarted(true);
     setupAudioNodes();
-    if (rounds.length > 0) {
-      startCurrentRound(rounds[0], 0);
+    scoreRef.current = 0;
+    correctCountRef.current = 0;
+    streakRef.current = 0;
+    totalTimeSpentRef.current = 0;
+    currentRoundIdxRef.current = 0;
+    if (roundsRef.current.length > 0) {
+      startCurrentRound(roundsRef.current[0], 0);
     }
   };
 
