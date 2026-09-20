@@ -85,6 +85,7 @@ function GamePlayContent() {
   // Gameplay state
   const [timeLeft, setTimeLeft] = useState(ROUND_TIME_SEC);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [audioError, setAudioError] = useState(false);
   const [score, setScore] = useState(0);
   const [streak, setStreak] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
@@ -274,6 +275,7 @@ function GamePlayContent() {
     setIsAnswered(false);
     setSelectedChoiceId(null);
     setLastRoundScore(null);
+    setAudioError(false);
     setTimeLeft(ROUND_TIME_SEC);
 
     // Pick target voice preset & gain routing
@@ -362,6 +364,7 @@ function GamePlayContent() {
   // Replay audio
   const handleReplayIntro = () => {
     if (isAnsweredRef.current || !audioRef.current) return;
+    setAudioError(false);
     if (audioCtxRef.current && audioCtxRef.current.state === "suspended") {
       audioCtxRef.current.resume();
     }
@@ -592,6 +595,10 @@ function GamePlayContent() {
           crossOrigin="anonymous"
           preload="auto"
           className="hidden"
+          onError={() => {
+            setIsPlayingAudio(false);
+            setAudioError(true);
+          }}
           onPlay={() => {
             if (!isAnswered && mode === "disguised") {
               applyVoiceDisguise(activeVoice.style);
@@ -700,6 +707,10 @@ function GamePlayContent() {
         crossOrigin="anonymous"
         preload="auto"
         className="hidden"
+        onError={() => {
+          setIsPlayingAudio(false);
+          setAudioError(true);
+        }}
         onPlay={() => {
           if (!isAnswered && mode === "disguised") {
             applyVoiceDisguise(activeVoice.style);
@@ -820,14 +831,18 @@ function GamePlayContent() {
           disabled={isAnswered}
           onClick={handleReplayIntro}
           className={`py-2 px-6 rounded-2xl border font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 shadow-lg ${
-            isPlayingAudio
+            audioError
+              ? "bg-amber-500/20 border-amber-500/50 text-amber-300 shadow-amber-500/10 animate-pulse"
+              : isPlayingAudio
               ? "bg-pink-500/20 border-pink-500/50 text-pink-300 shadow-pink-500/20 animate-pulse"
               : "bg-white/10 hover:bg-white/20 border-white/20 text-white active:scale-[0.98]"
           }`}
         >
           <RotateCw className={`w-4 h-4 ${isPlayingAudio ? "animate-spin" : ""}`} />
           <span>
-            {isPlayingAudio
+            {audioError
+              ? "เสียงขัดข้อง กดเพื่อลองใหม่"
+              : isPlayingAudio
               ? (mode === "disguised"
                   ? `กำลังเล่นเสียง${activeVoice.shortLabel}...`
                   : mode === "instrumental"
@@ -900,9 +915,11 @@ function GamePlayContent() {
                   <h4 className="font-bold text-sm sm:text-base text-white truncate leading-snug">
                     {choice.title}
                   </h4>
-                  <p className="text-xs text-zinc-400 truncate mt-0.5">
-                    {choice.artist}
-                  </p>
+                  {isAnswered && (
+                    <p className="text-xs text-zinc-400 truncate mt-0.5">
+                      {choice.artist}
+                    </p>
+                  )}
                 </div>
               </div>
 
