@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
+import { AudioProvider } from "@/context/AudioContext";
 import Navbar from "@/components/Navbar";
 import AuthModal from "@/components/AuthModal";
 
@@ -26,9 +27,11 @@ export default function RootLayout({
       </head>
       <body className="bg-[#09090f] text-zinc-100 min-h-screen flex flex-col selection:bg-pink-500 selection:text-white antialiased">
         <AuthProvider>
-          <Navbar />
-          <main className="flex-1 flex flex-col">{children}</main>
-          <AuthModal />
+          <AudioProvider>
+            <Navbar />
+            <main className="flex-1 flex flex-col">{children}</main>
+            <AuthModal />
+          </AudioProvider>
         </AuthProvider>
       </body>
     </html>

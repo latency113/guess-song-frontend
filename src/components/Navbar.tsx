@@ -3,17 +3,11 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { soundEngine } from "@/lib/audio";
-import { Music, Trophy, User, LogOut, Volume2, VolumeX, Sparkles } from "lucide-react";
+import VolumeControl from "@/components/VolumeControl";
+import { Music, Trophy, User, LogOut, Sparkles } from "lucide-react";
 
 export default function Navbar() {
   const { user, stats, logout, openAuthModal } = useAuth();
-  const [isMuted, setIsMuted] = useState(false);
-
-  const toggleMute = () => {
-    soundEngine.isMuted = !soundEngine.isMuted;
-    setIsMuted(soundEngine.isMuted);
-  };
 
   return (
     <nav className="sticky top-0 z-40 w-full glass-panel border-b border-white/10 px-4 md:px-8 py-3.5">
@@ -57,14 +51,8 @@ export default function Navbar() {
 
         {/* Right side controls */}
         <div className="flex items-center gap-3">
-          {/* Mute toggle button */}
-          <button
-            onClick={toggleMute}
-            className="p-2 rounded-xl bg-white/5 border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
-            title={isMuted ? "เปิดเสียง" : "ปิดเสียง"}
-          >
-            {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4 text-zinc-300" />}
-          </button>
+          {/* Volume controller */}
+          <VolumeControl variant="compact" />
 
           {/* Leaderboard icon on mobile */}
           <Link

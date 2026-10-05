@@ -4,6 +4,8 @@ import { useEffect, useState, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api, GameRound, GameChoice } from "@/lib/api";
 import { soundEngine } from "@/lib/audio";
+import { useAudio } from "@/context/AudioContext";
+import VolumeControl from "@/components/VolumeControl";
 import AudioVisualizer from "@/components/AudioVisualizer";
 import TimerBar from "@/components/TimerBar";
 import {
@@ -104,12 +106,24 @@ function GamePlayContent() {
   const [isAnswered, setIsAnswered] = useState(false);
   const [lastRoundScore, setLastRoundScore] = useState<number | null>(null);
 
+  // Audio volume and settings from global AudioContext
+  const {
+    volume,
+    isMuted,
+    effectiveVolume,
+    setVolume,
+    toggleMute,
+    increaseVolume,
+    decreaseVolume,
+  } = useAudio();
+
   // Audio elements & Web Audio API
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
   const diffGainRef = useRef<GainNode | null>(null);
   const normalGainRef = useRef<GainNode | null>(null);
+  const masterGainRef = useRef<GainNode | null>(null);
   const filterNodeRef = useRef<BiquadFilterNode | null>(null);
 
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -124,6 +138,45 @@ function GamePlayContent() {
   const streakRef = useRef(0);
   const totalTimeSpentRef = useRef(0);
   const roundsRef = useRef<GameRound[]>([]);
+
+  // Synchronize effectiveVolume with audio element and Web Audio master gain
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = effectiveVolume;
+    }
+    if (masterGainRef.current && audioCtxRef.current) {
+      try {
+        masterGainRef.current.gain.setValueAtTime(
+          effectiveVolume,
+          audioCtxRef.current.currentTime
+        );
+      } catch (err) {
+        console.warn("Failed to set master gain:", err);
+      }
+    }
+  }, [effectiveVolume]);
+
+  // Global keyboard shortcuts during quiz: M to mute, ArrowUp/+ to increase, ArrowDown/- to decrease
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (["INPUT", "TEXTAREA"].includes((e.target as HTMLElement)?.tagName)) {
+        return;
+      }
+      if (e.key === "m" || e.key === "M") {
+        e.preventDefault();
+        toggleMute();
+      } else if (e.key === "ArrowUp" || e.key === "+" || e.key === "=") {
+        e.preventDefault();
+        increaseVolume(0.1);
+      } else if (e.key === "ArrowDown" || e.key === "-") {
+        e.preventDefault();
+        decreaseVolume(0.1);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [toggleMute, increaseVolume, decreaseVolume]);
 
   // Initialize Web Audio API nodes with both Instrumental Vocal Canceler and Voice Disguise branches
   const setupAudioNodes = () => {
@@ -150,7 +203,6 @@ function GamePlayContent() {
       splitter.connect(diffGain, 0); // Left channel
       splitter.connect(inverter, 1); // Right channel into inverter
       inverter.connect(diffGain);    // Left + (-Right) = Vocal Cancelled!
-      diffGain.connect(ctx.destination);
 
       // 2. Normal / Voice Disguised Branch
       const filter = ctx.createBiquadFilter();
@@ -163,7 +215,15 @@ function GamePlayContent() {
 
       source.connect(filter);
       filter.connect(normalGain);
-      normalGain.connect(ctx.destination);
+
+      // 3. Master Volume Gain Node
+      const masterGain = ctx.createGain();
+      masterGain.gain.setValueAtTime(effectiveVolume, ctx.currentTime);
+      masterGainRef.current = masterGain;
+
+      diffGain.connect(masterGain);
+      normalGain.connect(masterGain);
+      masterGain.connect(ctx.destination);
     } catch (e) {
       console.warn("Web Audio initialization warning:", e);
     }
@@ -322,6 +382,7 @@ function GamePlayContent() {
 
     // Set audio source and play
     if (audioRef.current) {
+      audioRef.current.volume = effectiveVolume;
       audioRef.current.src = round.previewUrl;
       audioRef.current.currentTime = 0;
       applyVoiceDisguise(targetVoice.style);
@@ -368,6 +429,7 @@ function GamePlayContent() {
     if (audioCtxRef.current && audioCtxRef.current.state === "suspended") {
       audioCtxRef.current.resume();
     }
+    audioRef.current.volume = effectiveVolume;
     audioRef.current.currentTime = 0;
     if (mode === "instrumental") {
       if (diffGainRef.current && normalGainRef.current) {
@@ -685,6 +747,11 @@ function GamePlayContent() {
             </div>
           </div>
 
+          {/* Pre-game Volume Setting & Test */}
+          <div className="mb-6 text-left">
+            <VolumeControl variant="panel" showShortcutsHint={true} />
+          </div>
+
           <button
             onClick={handleStartFirstRound}
             className="w-full py-4 rounded-2xl bg-gradient-to-r from-violet-600 via-fuchsia-600 to-pink-600 text-white font-bold text-base shadow-lg shadow-violet-600/30 hover:opacity-95 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
@@ -824,8 +891,8 @@ function GamePlayContent() {
         )}
       </div>
 
-      {/* Clean Replay Controller */}
-      <div className="flex items-center justify-center my-3">
+      {/* Clean Audio & Volume Controls Deck */}
+      <div className="flex flex-wrap items-center justify-center gap-3 my-3">
         <button
           type="button"
           disabled={isAnswered}
@@ -855,6 +922,9 @@ function GamePlayContent() {
                   : "ฟังเสียงเพลงซ้ำ")}
           </span>
         </button>
+
+        {/* In-Game Volume Control */}
+        <VolumeControl variant="full" />
       </div>
 
       {/* Timer Bar */}
