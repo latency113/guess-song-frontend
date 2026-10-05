@@ -3,6 +3,15 @@
 class SoundEngine {
   private ctx: AudioContext | null = null;
   public isMuted: boolean = false;
+  public volume: number = 0.8;
+
+  setVolume(vol: number) {
+    this.volume = Math.max(0, Math.min(1, vol));
+  }
+
+  setMuted(muted: boolean) {
+    this.isMuted = muted;
+  }
 
   private getContext(): AudioContext | null {
     if (typeof window === "undefined") return null;
@@ -19,7 +28,7 @@ class SoundEngine {
   }
 
   playCorrect() {
-    if (this.isMuted) return;
+    if (this.isMuted || this.volume <= 0) return;
     const ctx = this.getContext();
     if (!ctx) return;
 
@@ -33,7 +42,8 @@ class SoundEngine {
     osc.frequency.exponentialRampToValueAtTime(783.99, now + 0.2); // G5
     osc.frequency.exponentialRampToValueAtTime(1046.5, now + 0.3); // C6
 
-    gain.gain.setValueAtTime(0.2, now);
+    const maxGain = 0.25 * this.volume;
+    gain.gain.setValueAtTime(maxGain, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
 
     osc.connect(gain);
@@ -44,7 +54,7 @@ class SoundEngine {
   }
 
   playWrong() {
-    if (this.isMuted) return;
+    if (this.isMuted || this.volume <= 0) return;
     const ctx = this.getContext();
     if (!ctx) return;
 
@@ -56,7 +66,8 @@ class SoundEngine {
     osc.frequency.setValueAtTime(160, now);
     osc.frequency.linearRampToValueAtTime(110, now + 0.3);
 
-    gain.gain.setValueAtTime(0.2, now);
+    const maxGain = 0.25 * this.volume;
+    gain.gain.setValueAtTime(maxGain, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
 
     osc.connect(gain);
@@ -67,7 +78,7 @@ class SoundEngine {
   }
 
   playTick() {
-    if (this.isMuted) return;
+    if (this.isMuted || this.volume <= 0) return;
     const ctx = this.getContext();
     if (!ctx) return;
 
@@ -78,7 +89,8 @@ class SoundEngine {
     osc.type = "sine";
     osc.frequency.setValueAtTime(880, now);
 
-    gain.gain.setValueAtTime(0.08, now);
+    const maxGain = 0.1 * this.volume;
+    gain.gain.setValueAtTime(maxGain, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
 
     osc.connect(gain);
@@ -89,7 +101,7 @@ class SoundEngine {
   }
 
   playFanfare() {
-    if (this.isMuted) return;
+    if (this.isMuted || this.volume <= 0) return;
     const ctx = this.getContext();
     if (!ctx) return;
 
@@ -102,7 +114,8 @@ class SoundEngine {
       osc.type = "sine";
       osc.frequency.setValueAtTime(freq, startTime);
 
-      gain.gain.setValueAtTime(0.18, startTime);
+      const maxGain = 0.22 * this.volume;
+      gain.gain.setValueAtTime(maxGain, startTime);
       gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.35);
 
       osc.connect(gain);
